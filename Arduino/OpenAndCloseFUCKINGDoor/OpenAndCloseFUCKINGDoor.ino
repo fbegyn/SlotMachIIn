@@ -29,11 +29,10 @@
 // Delta equals 720? = 1 full turn, 2 interupts for 1 'tick'
 #define CLOSE_THRESHHOLD -400
 #define OPEN_THRESHHOLD -800
-                                // 11         10              00              01
-const int cwSequence[] = {3, 2, 0, 1};
-// The inverse of cwSequence: cwSequence[reverseCwSequence[i]] = i
-const int reverseCwSequence[] = {2, 3, 1, 0};
-const int pulses_per_turn = 720; // http://trivox.tripod.com/lego-nxt-motor-input-output.html
+// 11         10              00              01
+const int cwSequence[] = {B10, B11, B01, B00};
+const int ccwSequence[] = {B01, B11, B10, B00};
+const int pulses_per_turn = 180; // http://trivox.tripod.com/lego-nxt-motor-input-output.html
 
 volatile int current_turn_count = 0;
 volatile int prev_cw_index = 0;
@@ -41,15 +40,28 @@ volatile int prev_cw_index = 0;
 bool is_open = false;
 bool is_closed = false;
 
-int get_cw_index(bool ser1, bool ser2) {
-  int out = 0;
+int decode_rotary(bool ser0, bool ser1) {
+  int out = B00;
+  if (ser0) {
+    out |= B01;
+  }
   if (ser1) {
-    out += 2;
+    out |= B10;
   }
-  if (ser2) {
-    out += 1;
+  return out;
+}
+
+bool determine_rotation(){
+  int seq[4];
+  for (int i = 0; i < 4; i++){
+    seq[i] = decode_rotary(GETSER1, GETSER2);
   }
-  return reverseCwSequence[out];
+  if (seq == cwSequence){
+    return true;
+  }
+  if (seq == ccwSequence){
+    return false;
+  }
 }
 
 void init_motor_pinout() {
@@ -61,7 +73,6 @@ void init_motor_pinout() {
 }
 
 void update_openness() {
-
   if (is_open != current_turn_count < OPEN_THRESHHOLD) {
     is_open = current_turn_count < OPEN_THRESHHOLD;
     if (is_open) {
@@ -83,16 +94,12 @@ void update_openness() {
 }
 
 void update_current_turn() {
-  int index = get_cw_index(GETSER1, GETSER2);
-
-  if ((index + 1) % 4 == prev_cw_index) {
+  bool cwRotation = determine_rotation();
+  if (cwRotation) {
     current_turn_count ++;
-  } else if (index == (prev_cw_index + 1) % 4) {
+  } else if (!cwRotation) {
     current_turn_count --;
   }
-
-  prev_cw_index = index;
-
   update_openness();
 }
 
